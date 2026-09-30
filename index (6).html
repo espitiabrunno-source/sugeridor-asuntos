@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sugeridor de asuntos</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{--bg:#f2f5f7;--card:#fff;--ink:#14202b;--mut:#5b6b78;--line:#d5dde3;--acc:#0f5e7a;--acc-ink:#fff;--ea:#b3261e;--ea-bg:#fdeceb;--ca:#8a5200;--ca-bg:#fff3de;--mark:#ffe58a}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0f171d;--card:#17222a;--ink:#e7eef3;--mut:#9fb0bc;--line:#2b3a45;--acc:#5bb6d6;--acc-ink:#06222e;--ea:#ff8b84;--ea-bg:#3a1b1a;--ca:#f2b766;--ca-bg:#3a2a12;--mark:#6b5a10}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "IBM Plex Sans",system-ui,sans-serif}
+main{max-width:1040px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:1.5rem;margin:0 0 4px}
+.sub{color:var(--mut);margin:0 0 20px}
+.grid{display:grid;gap:16px;grid-template-columns:1fr}
+@media(min-width:900px){.grid{grid-template-columns:5fr 6fr;align-items:start}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px}
+label{font-weight:600;display:block;margin-bottom:6px}
+textarea{width:100%;min-height:220px;resize:vertical;padding:10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit}
+button,.btn{font:inherit;font-weight:500;padding:8px 14px;border-radius:6px;border:1px solid var(--acc);background:var(--acc);color:var(--acc-ink);cursor:pointer}
+button.sec,.btn.sec{background:transparent;color:var(--acc)}
+:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.status{font-size:.875rem;color:var(--mut)}
+.alert{border-left:5px solid;border-radius:6px;padding:10px 12px;margin-bottom:10px}
+.alert.ea{background:var(--ea-bg);border-color:var(--ea);color:var(--ea)}
+.alert.ca{background:var(--ca-bg);border-color:var(--ca);color:var(--ca)}
+.alert b{display:block}
+.alert span{color:var(--ink);font-size:.9rem}
+.res{border:1px solid var(--line);border-radius:6px;padding:12px;margin-bottom:10px}
+.res.top{border-color:var(--acc)}
+.res h3{margin:0;font-size:1rem;display:flex;gap:8px;justify-content:space-between;align-items:baseline}
+.pct{font-size:.85rem;color:var(--mut);white-space:nowrap}
+.cat{font-size:.85rem;color:var(--mut)}
+.res p{margin:6px 0 0;font-size:.92rem}
+.hits{font-size:.85rem;color:var(--mut)}
+mark{background:var(--mark);color:inherit;padding:0 2px;border-radius:2px}
+#eco{white-space:pre-wrap;font-size:.92rem;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+.empty{color:var(--mut)}
+.aviso{border:1px solid var(--line);border-left:5px solid var(--acc);border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:.88rem}
+input[type=text],input[type=search]{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit;margin-bottom:12px}
+.chip{display:inline-block;border:1px solid var(--line);border-radius:4px;padding:1px 8px;margin:2px 2px 2px 0;font-size:.82rem;color:var(--ink)}
+.chip.al{border-color:var(--ea);color:var(--ea)}
+.h2{font-size:1rem;margin:18px 0 8px}
+.snip{color:var(--mut)}
+button.chip{background:transparent;color:var(--ink);cursor:pointer;font:inherit;font-size:.82rem;padding:1px 8px}
+button.chip.sel{background:var(--acc);color:var(--acc-ink);border-color:var(--acc)}
+.add{flex:1;min-width:160px;width:auto;margin:0}
+#hist{margin-top:16px}
+#hist .bar{display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;align-items:center;margin-bottom:10px}
+#hist .bar h2{margin:0;font-size:1.1rem}
+</style>
+</head>
+<body>
+<main>
+  <h1>Sugeridor de asuntos</h1>
+  <p class="sub">Pega el verbatim y revisa los asuntos sugeridos antes de categorizar. Es una ayuda: la decisión final es tuya.</p>
+  <div class="grid">
+    <section class="card">
+      <label for="caso">Número de caso</label>
+      <input id="caso" type="text" autocomplete="off" placeholder="Ej. 12345678">
+      <div class="aviso" role="note"><b>Antes de pegar el verbatim:</b> quita nombres, teléfonos, correos, direcciones y documentos del consumidor. Deja los síntomas, los detalles del producto y lo que ocurrió. Esta herramienta es un apoyo y no garantiza la protección de datos personales: revisa el texto antes de analizarlo.</div>
+      <label for="verbatim">Verbatim del consumidor</label>
+      <textarea id="verbatim" placeholder="Pega aquí el texto del caso"></textarea>
+      <div class="row">
+        <button id="go">Sugerir asuntos</button>
+        <button id="clear" class="sec">Limpiar</button>
+      </div>
+      <div class="row">
+        <span class="status" id="status">Cargando definiciones…</span>
+      </div>
+      <div id="eco" hidden></div>
+    </section>
+    <section class="card" aria-live="polite">
+      <div id="avisos"></div>
+      <div id="out"><p class="empty">Las sugerencias aparecerán aquí.</p></div>
+    </section>
+  </div>
+  <section class="card" id="hist">
+    <div class="bar">
+      <h2>Histórico de consultas</h2>
+      <span class="row" style="margin:0">
+        <label class="btn sec" for="imp" style="margin:0">Importar aprendizaje</label><input id="imp" type="file" accept=".json" hidden>
+        <button id="expj" class="sec">Exportar aprendizaje</button>
+        <button id="exp" class="sec">Exportar CSV</button>
+        <button id="borrar" class="sec">Borrar todo</button>
+      </span>
+    </div>
+    <p class="status">Por privacidad, el texto del verbatim no se guarda: solo el número de caso, palabras clave sin orden, los asuntos sugeridos y los finales.</p>
+    <input id="filtro" type="search" placeholder="Buscar por caso o asunto" aria-label="Buscar en el histórico">
+    <datalist id="asuntos-dl"></datalist>
+    <div id="lista"></div>
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+/* ===== Configuración ===== */
+const ARCHIVO = 'asuntos.xlsx';          // Excel junto a index.html en el repositorio
+const MAX = 8, UMBRAL = 0.7;              // máximo de resultados y corte: solo asuntos con 70 % o más de coincidencia (relativa al mejor)
+// Asuntos que ya no existen en la plataforma: no se sugieren y se avisa en todas las validaciones.
+const NO_DISPONIBLES = [{
+  re:/respuesta\s+conversacion/, nombre:'Respuesta/Conversación',
+  aviso:'Ya no está disponible en la plataforma: no lo selecciones en ninguna validación. En la tabla se usaba para diálogos entre consumidores o menciones a amigos sin opinión sobre el producto, y para respuestas a mensajes de la marca con un emoji u otra forma que no permite seguir la conversación.'
+}];
+// Alertas críticas: ajusta estas listas con el equipo. Se busca sobre texto sin tildes y en minúsculas.
+const ALERTAS = [
+  {k:'ea', titulo:'Posible Evento Adverso', msg:'Revisa si aplica un asunto de Evento Adverso.',
+   re:/\b(vomit|nausea|diarrea|alergi|reaccion|hospital|urgencia|medico|doctor|intoxic|mareo|ronch|sarpullid|hinchaz|picazon|sangr|dolor|malestar|enferm|irrit|quemadur|ardor|lastim|asfixi|ahog|convuls|desmay|salud|quem|empeor)/g, ancla:/^MEDICALAE/},
+  {k:'ea', titulo:'Posible Falta de Efecto', msg:'Revisa si aplica Falta de Efecto (LOE).',
+   re:/\b(no me protegi|no funcion|no hizo efecto|no me hizo efecto|no sirvio|sin efecto|no mejor)/g, ancla:/^LOE/},
+  {k:'ca', titulo:'Posible Problema de Calidad', msg:'Revisa si aplica un asunto de Calidad de producto.',
+   re:/\b(vencid|caduc|moho|hongo|mal olor|olor raro|sabor raro|mal sabor|cuerpo extrano|vidrio|plastico|metal|insecto|bicho|gusano|cabello|pelo|suciedad|sellad|abolla|fuga|derram|rota|roto|defectuos|textura|cambio de color|color raro|descompuest|agri|empaque|tapa|lote)/g}
+];
+
+/* ===== Utilidades de texto ===== */
+const STOP = new Set('de la el en y a los las un una que con por para se su sus al del lo es me mi le les no si pero como mas muy ya fue ha he era son este esta esto ese esa tiene tengo'.split(' '));
+const norm = s => String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9\s]/g,' ');
+const stem = w => w.length>4 ? w.replace(/(mente|ciones|cion|es|s)$/,'') : w;
+const tokens = s => norm(s).split(/\s+/).filter(w=>w.length>2 && !STOP.has(w)).map(stem);
+const esc = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ===== Índice a partir del Excel ===== */
+let DOCS = [], IDF = {};
+const $ = id => document.getElementById(id);
+
+const ETIQ = {AE:'Evento Adverso', PQC:'Problema de calidad', INQ:'Consulta', FBK:'Feedback', LEAD:'Lead', SPAM:'Spam'};
+const recorta = (t,n) => { t = String(t).replace(/\s+/g,' ').trim(); return t.length>n ? t.slice(0,n-1)+'…' : t; };
+const unico = (arr,v) => { v = String(v==null?'':v).replace(/\s*\n\s*/g,' ').trim(); if(v && v!=='#N/A' && !arr.includes(v)) arr.push(v); };
+
+function construir(docs, hojas){
+  DOCS = docs.map(f=>{
+    const w = {};
+    const add = (txt,peso)=>tokens(txt).forEach(t=>{ w[t] = Math.max(w[t]||0, peso); });
+    add(f.asunto,3); add(f.kw.join(' '),3); add(f.ej.join(' '),2); add(f.uso.join(' '),1.5); add(f.def.join(' '),1);
+    const frases = [...f.kw, ...f.ej].flatMap(t=>t.split(/[,;\n–]|\s-\s/)).map(norm).map(x=>x.trim()).filter(x=>x.length>=5 && x.length<=40);
+    return {asunto:f.asunto, cat:f.tipos.map(t=>ETIQ[t]||t).join(' · '),
+      def:recorta(f.def[0]||'',300), uso:recorta(f.uso.slice(0,2).join(' | '),360), ej:recorta(f.ej[0]||'',220),
+      fuente:f.hojas.join(', '), esAE:f.tipos.includes('AE'), esPQC:f.tipos.includes('PQC'),
+      w, frases, n:Object.keys(w).length};
+  });
+  const df = {};
+  DOCS.forEach(d=>Object.keys(d.w).forEach(t=>df[t]=(df[t]||0)+1));
+  IDF = {}; Object.keys(df).forEach(t=>IDF[t]=Math.log(1+DOCS.length/df[t]));
+  $('asuntos-dl').innerHTML = DOCS.map(d=>`<option value="${esc(d.asunto)}">`).join('');
+  $('status').textContent = DOCS.length ? `${DOCS.length} asuntos cargados (hojas: ${hojas.join(', ')})` : 'No se encontraron asuntos en el archivo';
+}
+
+/* Lee el libro: solo hojas visibles que tengan una columna "Asunto GCCP" (la fila de encabezado puede estar
+   en cualquiera de las primeras 15 filas). Las filas del mismo asunto, aunque estén en hojas distintas, se unen en uno solo. */
+function leerLibro(buf){
+  const wb = XLSX.read(buf,{type:'array'});
+  const meta = (wb.Workbook && wb.Workbook.Sheets) || [];
+  const mapa = new Map(), hojas = [];
+  wb.SheetNames.forEach((nombre,i)=>{
+    if(meta[i] && meta[i].Hidden) return;                                  // hojas ocultas: se ignoran
+    const filas = XLSX.utils.sheet_to_json(wb.Sheets[nombre],{header:1, defval:''});
+    const hi = filas.slice(0,15).findIndex(r=>r.some(c=>/asunto\s*gccp/.test(norm(c))));
+    if(hi<0) return;                                                       // no es una tabla de asuntos
+    const enc = filas[hi].map(c=>norm(c).trim());
+    const cols = re => enc.map((c,j)=>re.test(c)?j:-1).filter(j=>j>=0);
+    const cCod = cols(/asunto\s*gccp/)[0], cNom = cols(/asunto\s*sprinklr/)[0], cCls = cols(/classifica|clasifica/)[0];
+    const cDes = cols(/^descri/), cKw = cols(/palabra\s*clave/), cEj = cols(/ejemplo|exemplo/), cDef = cols(/^defini/), cUso = cols(/cuando\s*usar/);
+    const base = /pqc/i.test(nombre) ? ['PQC'] : /evento adverso/i.test(nombre) ? ['AE'] : [];
+    let usada = false;
+    filas.slice(hi+1).forEach(f=>{
+      const codigo = String(f[cCod]||'').replace(/\s*\n\s*/g,' / ').trim();
+      if(!codigo) return;
+      const nom = String((cNom!=null ? f[cNom] : '') || (cDes.length ? f[cDes[0]] : '') || '').replace(/\s+/g,' ').trim();
+      const sinCodigo = norm(codigo).trim()==='nao tem';                    // asuntos de Sprinklr sin código GCCP
+      const key = sinCodigo ? 'nt:'+norm(nom) : norm(codigo).trim();
+      let d = mapa.get(key);
+      if(!d){ d = {codigo:sinCodigo?'':codigo, nombre:'', tipos:[], def:[], uso:[], kw:[], ej:[], hojas:[]}; mapa.set(key,d); }
+      if(!d.nombre) d.nombre = nom;
+      base.forEach(t=>{ if(!d.tipos.includes(t)) d.tipos.push(t); });
+      if(cCls!=null) String(f[cCls]||'').split(/\s*-\s*/).map(t=>t.trim().toUpperCase()).filter(Boolean).forEach(t=>{ if(!d.tipos.includes(t)) d.tipos.push(t); });
+      cDef.forEach(j=>unico(d.def,f[j])); cUso.forEach(j=>unico(d.uso,f[j])); cKw.forEach(j=>unico(d.kw,f[j])); cEj.forEach(j=>unico(d.ej,f[j]));
+      if(!d.hojas.includes(nombre)) d.hojas.push(nombre);
+      usada = true;
+    });
+    if(usada) hojas.push(nombre);
+  });
+  construir([...mapa.values()].map(d=>({...d, asunto: d.codigo ? (d.nombre ? d.codigo+' — '+d.nombre : d.codigo) : d.nombre})).filter(d=>d.asunto && !NO_DISPONIBLES.some(n=>n.re.test(norm(d.asunto)))), hojas);
+}
+
+async function cargarInicial(){
+  try{
+    const r = await fetch(ARCHIVO,{cache:'no-cache'}); if(!r.ok) throw 0;
+    leerLibro(await r.arrayBuffer());
+    const fecha = r.headers.get('Last-Modified');
+    if(fecha && DOCS.length) $('status').textContent += ' · actualizado ' + new Date(fecha).toLocaleDateString('es');
+  }catch(e){ $('status').textContent = 'No se pudo cargar las definiciones. Avisa al administrador.'; }
+}
+
+/* ===== Análisis ===== */
+function analizar(){
+  const texto = $('verbatim').value.trim();
+  const out = $('out');
+  if(!texto){ out.innerHTML = '<p class="empty">Pega un verbatim para analizar.</p>'; $('eco').hidden = true; return; }
+  if(!DOCS.length){ out.innerHTML = '<p class="empty">Las definiciones no están disponibles. Avisa al administrador.</p>'; return; }
+
+  const nt = norm(texto), V = new Set(tokens(texto));
+  const alertas = ALERTAS.map(a=>({...a, hits:[...new Set(nt.match(a.re)||[])]})).filter(a=>a.hits.length);
+  const hayAlerta = alertas.length>0;
+
+  const caso = $('caso').value.trim();
+  const sim = similares(texto, caso);                        // casos parecidos ya corregidos por especialistas
+  const M = modeloAprendizaje();
+  const rank = d => d.esAE ? 0 : d.esPQC ? 1 : 2;            // prioridad de orden: Evento Adverso, PQC, resto
+  const minHits = V.size<=2 ? 1 : 2;                         // evidencia mínima para no mostrar coincidencias de una sola palabra
+
+  let res = DOCS.map(d=>{
+    let s = 0, apr = 0; const hits = [];
+    V.forEach(t=>{ if(d.w[t]){ s += IDF[t]*d.w[t]; hits.push(t); } });
+    d.frases.forEach(f=>{ if(nt.includes(f)){ s += 4; hits.push(f); } });
+    const p = M.pos[d.asunto];                               // palabras que los especialistas asociaron a este asunto al corregir
+    if(p) V.forEach(t=>{ if(p[t] && !d.w[t]){ s += (IDF[t]||Math.log(1+DOCS.length)) * (p[t]>=2 ? 2 : 1.2); hits.push(t); apr++; } });
+    s = s / Math.pow(d.n||1, 0.3);
+    if(d.esAE || d.esPQC) s *= 1.15;                         // prioridad base a AE y PQC
+    if(d.esAE && alertas.some(a=>a.k==='ea')) s *= 1.5;      // alerta de Evento Adverso: suben los asuntos AE
+    if(d.esPQC && alertas.some(a=>a.k==='ca')) s *= 1.5;     // alerta de Calidad: suben los asuntos PQC
+    const v = M.vis[d.asunto];                               // si sus sugerencias casi nunca se aceptan, baja; si se aceptan, sube
+    if(v>=3) s *= 0.7 + 0.6*((M.ok[d.asunto]||0)/v);
+    return {d, s, hits, apr, ref:false};
+  });
+  const max0 = Math.max(0, ...res.map(r=>r.s));
+  sim.forEach(({x,s:ss})=>(x.finales||[]).forEach(a=>{       // asuntos finales de casos parecidos suben
+    const r = res.find(y=>y.d.asunto===a); if(r){ r.s += 0.6*ss*max0; r.ref = true; }
+  }));
+  const m1 = Math.max(0, ...res.map(r=>r.s));
+  alertas.forEach(a=>{ if(!a.ancla) return;                  // la alerta empuja al asunto que corresponde (p. ej. MEDICALAE)
+    const r = res.find(y=>a.ancla.test(y.d.asunto)); if(r){ r.s = Math.max(r.s, 0.85*m1); r.anc = true; }
+  });
+  res = res.filter(r=>r.s>0 && (r.hits.length>=minHits || r.ref || r.anc));
+  const max = Math.max(0, ...res.map(r=>r.s)) || 1;
+  res = res.filter(r=>r.s/max>=UMBRAL).sort((a,b)=>rank(a.d)-rank(b.d) || (b.anc?1:0)-(a.anc?1:0) || b.s-a.s).slice(0,MAX);
+  const nota = `<p class="status">Solo se muestran asuntos con ${Math.round(UMBRAL*100)} % o más de coincidencia (relativa al mejor resultado). Eventos Adversos y PQC van primero.</p>`;
+
+  // Verbatim con coincidencias resaltadas
+  const marcadas = new Set(res.flatMap(r=>r.hits.flatMap(h=>h.split(' '))).map(stem));
+  $('eco').innerHTML = texto.split(/([\p{L}\p{N}]+)/u).map((p,i)=>
+    i%2 && marcadas.has(stem(norm(p).trim())) ? `<mark>${esc(p)}</mark>` : esc(p)).join('');
+  $('eco').hidden = false;
+
+  const falta = a => (a.k==='ea' && !res.some(r=>r.d.esAE)) || (a.k==='ca' && !res.some(r=>r.d.esPQC));
+  let html = alertas.map(a=>`<div class="alert ${a.k}"><b>${a.titulo}</b><span>${a.msg} Términos detectados: ${esc(a.hits.join(', '))}.${falta(a)?` <b>Ningún asunto de esta categoría llegó al ${Math.round(UMBRAL*100)} %: revisa el caso manualmente.</b>`:''}</span></div>`).join('');
+  html += res.length ? nota + res.map((r,i)=>`
+    <article class="res ${i===0?'top':''}">
+      <h3><span>${esc(r.d.asunto)}</span><span class="pct">${Math.round(r.s/max*100)} % de coincidencia</span></h3>
+      ${r.d.cat?`<div class="cat">${esc(r.d.cat)}</div>`:''}
+      ${r.d.def?`<p>${esc(r.d.def)}</p>`:''}
+      ${r.d.uso?`<p><b>Cuándo usarlo:</b> ${esc(r.d.uso)}</p>`:''}
+      ${r.d.ej?`<p class="snip">Ejemplo: ${esc(r.d.ej)}</p>`:''}
+      <p class="hits">Coincide con: ${esc([...new Set(r.hits)].join(', '))} · Fuente: ${esc(r.d.fuente)}${r.apr||r.ref?' · Reforzado por correcciones anteriores':''}${r.anc?' · Sugerido por los términos de alerta':''}</p>
+    </article>`).join('')
+    : `<p class="empty">Ningún asunto alcanzó el ${Math.round(UMBRAL*100)} % de coincidencia. Revisa el verbatim o consulta al equipo en Teams.</p>`;
+  if(sim.length){
+    html += '<h2 class="h2">Casos similares anteriores</h2>' + sim.map(({x,s,comunes})=>`
+    <article class="res">
+      <h3><span>Caso ${esc(x.caso||'sin número')}</span><span class="pct">${Math.round(s*100)} % similar</span></h3>
+      <div class="cat">${x.fecha?esc(new Date(x.fecha).toLocaleDateString('es')):'consolidado'}</div>
+      <p class="hits">Palabras en común: ${esc(comunes.join(', '))}</p>
+      ${(x.finales||[]).length?`<p><b>Asuntos finales:</b> ${esc(x.finales.join(', '))}</p>`:''}
+      <p class="hits">Sugeridos en esa consulta: ${x.asuntos.length?esc(x.asuntos.join(', ')):'ninguno'}</p>
+    </article>`).join('');
+  }
+  out.innerHTML = html;
+  guardar({caso, tokens:[...new Set(tokens(texto.replace(/\S+@\S+/g,' ')))].filter(t=>!/\d/.test(t)).sort(), asuntos:res.map(r=>r.d.asunto), alertas:alertas.map(a=>a.titulo)});
+}
+
+/* ===== Histórico (se guarda en este navegador; nunca se guarda el texto del verbatim) ===== */
+const KEY = 'sugeridor_hist_v1';
+let COMPARTIDO = [];   // correcciones consolidadas del repositorio (aprendizaje.json), opcional
+const leerH = () => { try{ return JSON.parse(localStorage.getItem(KEY)) || []; }catch(e){ return []; } };
+const escribirH = h => { try{ localStorage.setItem(KEY, JSON.stringify(h)); }catch(e){ $('status').textContent = 'No se pudo guardar el histórico (almacenamiento lleno o bloqueado)'; } };
+(function migrar(){   // convierte registros antiguos: elimina el texto y conserva solo palabras clave
+  const h = leerH();
+  if(h.some(x=>x.texto)) escribirH(h.map(({texto,...r})=>({...r, tokens:r.tokens||[...new Set(tokens(texto||''))].filter(t=>!/\d/.test(t)).sort(), finales:r.finales||[]})));
+})();
+
+function guardar(e){
+  let h = leerH();
+  const previo = e.caso ? h.find(x=>x.caso===e.caso) : null;
+  if(e.caso) h = h.filter(x=>x.caso!==e.caso);           // el mismo caso se actualiza, no se duplica
+  h.unshift({...e, finales: previo ? (previo.finales||[]) : [], id:Date.now(), fecha:new Date().toISOString()});
+  escribirH(h.slice(0,1000)); pintarH();
+}
+
+// Aprende de los asuntos finales: qué palabras se asocian a cada asunto y qué tan seguido se aceptan sus sugerencias.
+function modeloAprendizaje(){
+  const pos = {}, vis = {}, ok = {};
+  [...leerH(), ...COMPARTIDO].filter(x=>(x.finales||[]).length).forEach(x=>{
+    x.finales.forEach(a=>{ const p = pos[a] = pos[a] || {}; (x.tokens||[]).forEach(t=>{ p[t] = (p[t]||0)+1; }); });
+    x.asuntos.forEach(a=>{ vis[a] = (vis[a]||0)+1; if(x.finales.includes(a)) ok[a] = (ok[a]||0)+1; });
+  });
+  return {pos, vis, ok};
+}
+
+function similares(texto, caso){
+  const h = [...leerH(), ...COMPARTIDO].filter(x=>(!caso || x.caso!==caso) && (x.tokens||[]).length);
+  if(!h.length) return [];
+  const A = new Set(tokens(texto)), B = h.map(x=>new Set(x.tokens));
+  const df = {}; [A,...B].forEach(s=>s.forEach(t=>df[t]=(df[t]||0)+1));
+  const n = B.length+1, w = t=>Math.log(1+n/df[t]);
+  const suma = s=>[...s].reduce((a,t)=>a+w(t),0), sa = suma(A);
+  return h.map((x,i)=>{
+    let inter = 0; A.forEach(t=>{ if(B[i].has(t)) inter += w(t); });
+    return {x, s: inter/Math.sqrt((sa*suma(B[i]))||1), comunes:[...A].filter(t=>B[i].has(t)).slice(0,8)};
+  }).filter(r=>r.s>=0.25).sort((a,b)=>b.s-a.s).slice(0,3);
+}
+
+function pintarH(){
+  const q = norm($('filtro').value).trim();
+  const h = leerH().filter(x=>!q || norm((x.caso||'')+' '+x.asuntos.join(' ')+' '+(x.finales||[]).join(' ')).includes(q));
+  $('lista').innerHTML = h.length ? h.map(x=>{
+    const fin = x.finales||[];
+    return `<article class="res" data-id="${x.id}">
+      <h3><span>Caso ${esc(x.caso||'sin número')}</span><span class="pct">${esc(new Date(x.fecha).toLocaleString('es'))}</span></h3>
+      ${(x.alertas||[]).length?`<p class="hits">${x.alertas.map(a=>`<span class="chip al">${esc(a)}</span>`).join('')}</p>`:''}
+      <p class="hits">Sugeridos (toca los que aplicaste):<br>${x.asuntos.length?x.asuntos.map(a=>`<button class="chip${fin.includes(a)?' sel':''}" data-a="tog" data-v="${esc(a)}">${esc(a)}</button>`).join(''):'Sin sugerencias'}</p>
+      <p class="hits">Asuntos finales:<br>${fin.length?fin.map(f=>{const ok=x.asuntos.includes(f);return `<button class="chip ${ok?'sel':'al'}" data-a="rm" data-v="${esc(f)}" title="Quitar">${esc(f)}${ok?'':' (no sugerido)'} ×</button>`;}).join(''):'sin registrar'}</p>
+      <div class="row"><input class="add" type="text" list="asuntos-dl" placeholder="Agregar otro asunto final" aria-label="Agregar asunto final"><button class="sec" data-a="add">Agregar</button><button class="sec" data-a="ver">Cargar caso</button><button class="sec" data-a="del">Borrar</button></div>
+    </article>`;}).join('') : '<p class="empty">Aún no hay consultas guardadas.</p>';
+}
+$('filtro').addEventListener('input', pintarH);
+$('lista').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  const art = b.closest('article'), id = +art.dataset.id, h = leerH(), x = h.find(y=>y.id===id); if(!x) return;
+  const a = b.dataset.a, v = b.dataset.v; x.finales = x.finales||[];
+  if(a==='del') escribirH(h.filter(y=>y.id!==id));
+  else if(a==='tog' || a==='rm'){ x.finales = x.finales.includes(v) ? x.finales.filter(f=>f!==v) : [...x.finales, v]; escribirH(h); }
+  else if(a==='add'){
+    const val = art.querySelector('.add').value.trim(); if(!val) return;
+    const m = DOCS.find(d=>norm(d.asunto).trim()===norm(val).trim()), nombre = m ? m.asunto : val;
+    if(!x.finales.includes(nombre)) x.finales.push(nombre);
+    escribirH(h);
+  }
+  else if(a==='ver'){ $('caso').value = x.caso||''; window.scrollTo({top:0, behavior:'smooth'}); return; }
+  pintarH();
+});
+$('borrar').addEventListener('click', ()=>{ if(confirm('¿Borrar todo el histórico de este navegador?')){ escribirH([]); pintarH(); } });
+$('exp').addEventListener('click', ()=>{
+  const c = v=>'"'+String(v).replace(/"/g,'""')+'"';
+  const filas = [['Caso','Fecha','Asuntos sugeridos','Asuntos finales','Finales no sugeridos','Alertas'],
+    ...leerH().map(x=>{ const f=x.finales||[]; return [x.caso||'', x.fecha, x.asuntos.join('; '), f.join('; '), f.filter(y=>!x.asuntos.includes(y)).join('; '), (x.alertas||[]).join('; ')]; })];
+  const blob = new Blob(['\ufeff'+filas.map(r=>r.map(c).join(',')).join('\r\n')], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'historial-consultas.csv'; a.click();
+});
+$('go').addEventListener('click', analizar);
+$('clear').addEventListener('click', ()=>{ $('verbatim').value=''; $('caso').value=''; $('eco').hidden=true; $('out').innerHTML='<p class="empty">Las sugerencias aparecerán aquí.</p>'; });
+$('avisos').innerHTML = NO_DISPONIBLES.map(n=>`<div class="aviso"><b>Asunto no disponible: ${esc(n.nombre)}.</b> ${esc(n.aviso)}</div>`).join('');
+fetch('aprendizaje.json',{cache:'no-cache'}).then(r=>r.ok?r.json():[]).then(a=>{
+  if(Array.isArray(a)) COMPARTIDO = a.filter(x=>x && Array.isArray(x.tokens) && Array.isArray(x.asuntos));
+}).catch(()=>{});
+$('expj').addEventListener('click', ()=>{
+  const datos = leerH().filter(x=>(x.finales||[]).length).map(({caso,tokens,asuntos,finales,alertas,fecha})=>({caso,tokens,asuntos,finales,alertas,fecha}));
+  if(!datos.length){ $('status').textContent = 'Aún no hay consultas con asuntos finales para exportar'; return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(datos)],{type:'application/json'}));
+  a.download = 'aprendizaje.json'; a.click();
+});
+$('imp').addEventListener('change', async e=>{
+  const f = e.target.files[0]; if(!f) return;
+  try{
+    const arr = JSON.parse(await f.text()); if(!Array.isArray(arr)) throw 0;
+    const h = leerH(), casos = new Set(h.map(x=>x.caso).filter(Boolean)); let n = 0;
+    arr.forEach((x,i)=>{
+      if(!x || !Array.isArray(x.tokens) || !Array.isArray(x.asuntos) || (x.caso && casos.has(x.caso))) return;
+      h.push({caso:x.caso||'', tokens:x.tokens, asuntos:x.asuntos, finales:x.finales||[], alertas:x.alertas||[], id:Date.now()+i, fecha:x.fecha||new Date().toISOString()}); n++;
+    });
+    escribirH(h.slice(0,1000)); pintarH(); $('status').textContent = n+' consultas importadas';
+  }catch(err){ $('status').textContent = 'El archivo de aprendizaje no es válido'; }
+  e.target.value = '';
+});
+pintarH();
+cargarInicial();
+</script>
+</body>
+</html>
