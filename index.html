@@ -51,7 +51,6 @@ button.chip.sel{background:var(--acc);color:var(--acc-ink);border-color:var(--ac
 #hist .bar{display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;align-items:center;margin-bottom:10px}
 #hist .bar h2{margin:0;font-size:1.1rem}
 
-/* Estilos para el bloque de feedback */
 .fb-box{display:flex;align-items:center;justify-content:space-between;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 12px;margin-top:10px}
 .fb-box span{font-size:.85rem;font-weight:500;color:var(--mut)}
 .fb-btns{display:flex;gap:6px}
@@ -133,17 +132,16 @@ const ALERTAS = [
    re:/\b(vencid|caduc|moho|hongo|mal olor|olor raro|sabor raro|mal sabor|cuerpo extrano|vidrio|plastico|metal|insecto|bicho|gusano|cabello|pelo|suciedad|sellad|abolla|fuga|derram|rota|roto|defectuos|textura|cambio de color|color raro|descompuest|agri|empaque|tapa|lote)/g}
 ];
 
-/* ===== Utilidades de texto ===== */
+/* ===== Utilidades ===== */
 const STOP = new Set('de la el en y a los las un una que con por para se su sus al del lo es me mi le les no si pero como mas muy ya fue ha he era son este esta esto ese esa tiene tengo'.split(' '));
 const norm = s => String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9\s]/g,' ');
 const stem = w => w.length>4 ? w.replace(/(mente|ciones|cion|es|s)$/,'') : w;
 const tokens = s => norm(s).split(/\s+/).filter(w=>w.length>2 && !STOP.has(w)).map(stem);
 const esc = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]);
 
-// Extrae solo el código o nombre corto del asunto (ej: "LABELISS" de "LABELISS — Cuestiones relacionadas...")
 const corto = s => String(s||'').split(/\s+[—\-]\s+/)[0].trim();
 
-/* ===== Índice a partir del Excel ===== */
+/* ===== Índice Excel ===== */
 let DOCS = [], IDF = {};
 const $ = id => document.getElementById(id);
 
@@ -157,60 +155,80 @@ function construir(docs, hojas){
     const add = (txt,peso)=>tokens(txt).forEach(t=>{ w[t] = Math.max(w[t]||0, peso); });
     add(f.asunto,3); add(f.kw.join(' '),3); add(f.ej.join(' '),2); add(f.uso.join(' '),1.5); add(f.def.join(' '),1);
     const frases = [...f.kw, ...f.ej].flatMap(t=>t.split(/[,;\n–]|\s-\s/)).map(norm).map(x=>x.trim()).filter(x=>x.length>=5 && x.length<=40);
-    return {asunto:f.asunto, cat:f.tipos.map(t=>ETIQ[t]||t).join(' · '),
-      def:recorta(f.def[0]||'',180), uso:recorta(f.uso.slice(0,2).join(' | '),200), ej:recorta(f.ej[0]||'',150),
-      fuente:f.hojas.join(', '), esAE:f.tipos.includes('AE'), esPQC:f.tipos.includes('PQC'),
-      w, frases, n:Object.keys(w).length};
+    return {
+      asunto: f.asunto, 
+      cat: f.tipos.map(t=>ETIQ[t]||t).join(' · '),
+      def: recorta(f.def[0]||'', 180), 
+      uso: recorta(f.uso.slice(0,2).join(' | '), 200), 
+      ej: recorta(f.ej[0]||'', 150),
+      fuente: (f.hojas || []).join(', '), 
+      hojas: f.hojas || [],
+      esAE: f.tipos.includes('AE'), 
+      esPQC: f.tipos.includes('PQC'),
+      w, 
+      frases, 
+      n: Object.keys(w).length
+    };
   });
+  
   const df = {};
   DOCS.forEach(d=>Object.keys(d.w).forEach(t=>df[t]=(df[t]||0)+1));
   IDF = {}; Object.keys(df).forEach(t=>IDF[t]=Math.log(1+DOCS.length/df[t]));
+  
   $('asuntos-dl').innerHTML = DOCS.map(d=>`<option value="${esc(d.asunto)}">${esc(corto(d.asunto))}</option>`).join('');
   $('status').textContent = DOCS.length ? `${DOCS.length} asuntos cargados (hojas: ${hojas.join(', ')})` : 'No se encontraron asuntos en el archivo';
 }
 
 function leerLibro(buf){
-  const wb = XLSX.read(buf,{type:'array'});
-  const meta = (wb.Workbook && wb.Workbook.Sheets) || [];
-  const mapa = new Map(), hojas = [];
-  wb.SheetNames.forEach((nombre,i)=>{
-    if(meta[i] && meta[i].Hidden) return; 
-    const filas = XLSX.utils.sheet_to_json(wb.Sheets[nombre],{header:1, defval:''});
-    const hi = filas.slice(0,15).findIndex(r=>r.some(c=>/asunto\s*gccp/.test(norm(c))));
-    if(hi<0) return; 
-    const enc = filas[hi].map(c=>norm(c).trim());
-    const cols = re => enc.map((c,j)=>re.test(c)?j:-1).filter(j=>j>=0);
-    const cCod = cols(/asunto\s*gccp/)[0], cNom = cols(/asunto\s*sprinklr/)[0], cCls = cols(/classifica|clasifica/)[0];
-    const cDes = cols(/^descri/), cKw = cols(/palabra\s*clave/), cEj = cols(/ejemplo|exemplo/), cDef = cols(/^defini/), cUso = cols(/cuando\s*usar/);
-    const base = /pqc/i.test(nombre) ? ['PQC'] : /evento adverso/i.test(nombre) ? ['AE'] : [];
-    let usada = false;
-    filas.slice(hi+1).forEach(f=>{
-      const codigo = String(f[cCod]||'').replace(/\s*\n\s*/g,' / ').trim();
-      if(!codigo) return;
-      const nom = String((cNom!=null ? f[cNom] : '') || (cDes.length ? f[cDes[0]] : '') || '').replace(/\s+/g,' ').trim();
-      const sinCodigo = norm(codigo).trim()==='nao tem';
-      const key = sinCodigo ? 'nt:'+norm(nom) : norm(codigo).trim();
-      let d = mapa.get(key);
-      if(!d){ d = {codigo:sinCodigo?'':codigo, nombre:'', tipos:[], def:[], uso:[], kw:[], ej:[], hojas:[]}; mapa.set(key,d); }
-      if(!d.nombre) d.nombre = nom;
-      base.forEach(t=>{ if(!d.tipos.includes(t)) d.tipos.push(t); });
-      if(cCls!=null) String(f[cCls]||'').split(/\s*-\s*/).map(t=>t.trim().toUpperCase()).filter(Boolean).forEach(t=>{ if(!d.tipos.includes(t)) d.tipos.push(t); });
-      cDef.forEach(j=>unico(d.def,f[j])); cUso.forEach(j=>unico(d.uso,f[j])); cKw.forEach(j=>unico(d.kw,f[j])); cEj.forEach(j=>unico(d.ej,f[j]));
-      if(!d.hojas.includes(nombre)) d.hojas.push(nombre);
-      usada = true;
+  try {
+    const wb = XLSX.read(buf,{type:'array'});
+    const meta = (wb.Workbook && wb.Workbook.Sheets) || [];
+    const mapa = new Map(), hojas = [];
+    wb.SheetNames.forEach((nombre,i)=>{
+      if(meta[i] && meta[i].Hidden) return; 
+      const filas = XLSX.utils.sheet_to_json(wb.Sheets[nombre],{header:1, defval:''});
+      const hi = filas.slice(0,15).findIndex(r=>r.some(c=>/asunto\s*gccp/.test(norm(c))));
+      if(hi<0) return; 
+      const enc = filas[hi].map(c=>norm(c).trim());
+      const cols = re => enc.map((c,j)=>re.test(c)?j:-1).filter(j=>j>=0);
+      const cCod = cols(/asunto\s*gccp/)[0], cNom = cols(/asunto\s*sprinklr/)[0], cCls = cols(/classifica|clasifica/)[0];
+      const cDes = cols(/^descri/), cKw = cols(/palabra\s*clave/), cEj = cols(/ejemplo|exemplo/), cDef = cols(/^defini/), cUso = cols(/cuando\s*usar/);
+      const base = /pqc/i.test(nombre) ? ['PQC'] : /evento adverso/i.test(nombre) ? ['AE'] : [];
+      let usada = false;
+      filas.slice(hi+1).forEach(f=>{
+        const codigo = String(f[cCod]||'').replace(/\s*\n\s*/g,' / ').trim();
+        if(!codigo) return;
+        const nom = String((cNom!=null ? f[cNom] : '') || (cDes.length ? f[cDes[0]] : '') || '').replace(/\s+/g,' ').trim();
+        const sinCodigo = norm(codigo).trim()==='nao tem';
+        const key = sinCodigo ? 'nt:'+norm(nom) : norm(codigo).trim();
+        let d = mapa.get(key);
+        if(!d){ d = {codigo:sinCodigo?'':codigo, nombre:'', tipos:[], def:[], uso:[], kw:[], ej:[], hojas:[]}; mapa.set(key,d); }
+        if(!d.nombre) d.nombre = nom;
+        base.forEach(t=>{ if(!d.tipos.includes(t)) d.tipos.push(t); });
+        if(cCls!=null) String(f[cCls]||'').split(/\s*-\s*/).map(t=>t.trim().toUpperCase()).filter(Boolean).forEach(t=>{ if(!d.tipos.includes(t)) d.tipos.push(t); });
+        cDef.forEach(j=>unico(d.def,f[j])); cUso.forEach(j=>unico(d.uso,f[j])); cKw.forEach(j=>unico(d.kw,f[j])); cEj.forEach(j=>unico(d.ej,f[j]));
+        if(!d.hojas.includes(nombre)) d.hojas.push(nombre);
+        usada = true;
+      });
+      if(usada) hojas.push(nombre);
     });
-    if(usada) hojas.push(nombre);
-  });
-  construir([...mapa.values()].map(d=>({...d, asunto: d.codigo ? (d.nombre ? d.codigo+' — '+d.nombre : d.codigo) : d.nombre})).filter(d=>d.asunto && !NO_DISPONIBLES.some(n=>n.re.test(norm(d.asunto)))), hojas);
+    construir([...mapa.values()].map(d=>({...d, asunto: d.codigo ? (d.nombre ? d.codigo+' — '+d.nombre : d.codigo) : d.nombre})).filter(d=>d.asunto && !NO_DISPONIBLES.some(n=>n.re.test(norm(d.asunto)))), hojas);
+  } catch(e) {
+    console.error(e);
+    $('status').textContent = 'Error al procesar el archivo Excel.';
+  }
 }
 
 async function cargarInicial(){
   try{
-    const r = await fetch(ARCHIVO,{cache:'no-cache'}); if(!r.ok) throw 0;
+    const r = await fetch(ARCHIVO,{cache:'no-cache'}); 
+    if(!r.ok) throw new Error('Archivo no encontrado');
     leerLibro(await r.arrayBuffer());
     const fecha = r.headers.get('Last-Modified');
     if(fecha && DOCS.length) $('status').textContent += ' · actualizado ' + new Date(fecha).toLocaleDateString('es');
-  }catch(e){ $('status').textContent = 'No se pudo cargar las definiciones. Avisa al administrador.'; }
+  }catch(e){ 
+    $('status').textContent = 'No se pudo cargar las definiciones. Asegúrate de que asuntos.xlsx esté junto al index.html.'; 
+  }
 }
 
 /* ===== Análisis y Filtrado ===== */
@@ -230,9 +248,9 @@ function analizar(){
   const rank = d => d.esAE ? 0 : d.esPQC ? 1 : 2;
   const minHits = V.size<=2 ? 1 : 2;
 
-  // Filtrado por plataforma (GCCP / Sprinklr)
+  // Filtrado robusto por plataforma
   const docsFiltrados = DOCS.filter(d => {
-    const esSprinklr = d.fuente.toLowerCase().includes('sprinklr') || d.hojas.some(h => /sprinklr/i.test(h));
+    const esSprinklr = (d.hojas || []).some(h => /sprinklr/i.test(h)) || (d.fuente && /sprinklr/i.test(d.fuente));
     if(plataformaSel === 'Sprinklr') return esSprinklr;
     if(plataformaSel === 'GCCP') return !esSprinklr;
     return true;
@@ -274,7 +292,6 @@ function analizar(){
   const falta = a => (a.k==='ea' && !res.some(r=>r.d.esAE)) || (a.k==='ca' && !res.some(r=>r.d.esPQC));
   let html = alertas.map(a=>`<div class="alert ${a.k}"><b>${a.titulo}</b><span>${a.msg} Términos detectados: ${esc(a.hits.join(', '))}.${falta(a)?` <b>Ningún asunto de esta categoría llegó al ${Math.round(UMBRAL*100)} %: revisa el caso manualmente.</b>`:''}</span></div>`).join('');
   
-  // Buscar estado de confirmaciones en el caso actual
   const hActual = leerH().find(x=>x.caso === caso);
   const finalesActuales = hActual ? (hActual.finales || []) : [];
 
@@ -287,12 +304,11 @@ function analizar(){
       ${r.d.def?`<p><b>Resumen:</b> ${esc(r.d.def)}</p>`:''}
       <p class="hits">Coincide con: ${esc([...new Set(r.hits)].join(', '))} · Fuente: ${esc(r.d.fuente)}</p>
       
-      <!-- Cuadro de Feedback Sí / No -->
       <div class="fb-box">
         <span>¿Es correcta esta sugerencia?</span>
         <div class="fb-btns">
-          <button class="fb-btn yes ${esOk?'active':''}" onclick="darFeedback('${esc(r.d.asunto)}', true)">Sí 👍</button>
-          <button class="fb-btn no ${!esOk && hActual && hActual.asuntos.includes(r.d.asunto) && hActual.finales.length?'active':''}" onclick="darFeedback('${esc(r.d.asunto)}', false)">No 👎</button>
+          <button class="fb-btn yes ${esOk?'active':''}" data-fb="yes" data-asunto="${esc(r.d.asunto)}">Sí 👍</button>
+          <button class="fb-btn no ${!esOk && hActual && (hActual.asuntos||[]).includes(r.d.asunto) && (hActual.finales||[]).length?'active':''}" data-fb="no" data-asunto="${esc(r.d.asunto)}">No 👎</button>
         </div>
       </div>
     </article>`;
@@ -303,9 +319,14 @@ function analizar(){
   guardar({caso, tokens:[...new Set(tokens(texto.replace(/\S+@\S+/g,' ')))].filter(t=>!/\d/.test(t)).sort(), asuntos:res.map(r=>r.d.asunto), alertas:alertas.map(a=>a.titulo)});
 }
 
-/* ===== Retroalimentación y Aprendizaje del Usuario ===== */
-window.darFeedback = function(asuntoNombre, esCorrecto){
+/* ===== Event Listener para Feedback por Delegación ===== */
+$('out').addEventListener('click', e => {
+  const btn = e.target.closest('button[data-fb]');
+  if(!btn) return;
+  const esCorrecto = btn.dataset.fb === 'yes';
+  const asuntoNombre = btn.dataset.asunto;
   const casoNum = $('caso').value.trim();
+  
   let h = leerH();
   let x = casoNum ? h.find(y=>y.caso === casoNum) : h[0];
   if(!x) return;
@@ -317,15 +338,15 @@ window.darFeedback = function(asuntoNombre, esCorrecto){
     x.finales = x.finales.filter(f => f !== asuntoNombre);
   }
   escribirH(h);
-  analizar(); // Vuelve a renderizar con el estado de feedback actualizado
-  pintarH();   // Actualiza el histórico
-};
+  analizar(); 
+  pintarH();   
+});
 
-/* ===== Histórico con Nombres Cortos ===== */
+/* ===== Histórico ===== */
 const KEY = 'sugeridor_hist_v1';
 let COMPARTIDO = [];   
 const leerH = () => { try{ return JSON.parse(localStorage.getItem(KEY)) || []; }catch(e){ return []; } };
-const escribirH = h => { try{ localStorage.setItem(KEY, JSON.stringify(h)); }catch(e){ $('status').textContent = 'No se pudo guardar el histórico (almacenamiento lleno o bloqueado)'; } };
+const escribirH = h => { try{ localStorage.setItem(KEY, JSON.stringify(h)); }catch(e){ $('status').textContent = 'No se pudo guardar el histórico'; } };
 
 function guardar(e){
   let h = leerH();
